@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
+  <meta name="theme-color" content="#0d0d1a" />
+  <title>PianoSplit</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" />
+  <style>
+    :root {
+      --split: 50;
+      --key-zoom: 1;
+      --white-key-w: 36px;
+      --white-key-h: 130px;
+      --black-key-w: 22px;
+      --black-key-h: 80px;
+      --accent: #6c63ff;
+      --accent2: #ff6584;
+      --bg: #0d0d1a;
+      --panel: #161628;
+      --panel2: #1e1e35;
+      --border: #2a2a4a;
+      --text: #e0e0ff;
+      --dimmed: #5a5a8a;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      touch-action: none; user-select: none;
+      -webkit-user-select: none;
+      overscroll-behavior: none;
+    }
+    #app {
+      display: flex; flex-direction: column;
+      width: 100vw; height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    #topbar {
+      display: flex; align-items: center; gap: 4px;
+      padding: 3px 6px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; z-index: 100;
+    }
+    #topbar .logo { font-weight: 800; font-size: .95rem; color: var(--accent); letter-spacing: 1px; margin-right: 2px; white-space: nowrap; }
+    #topbar .btn-icon {
+      background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px;
+      padding: 4px 8px; font-size: .95rem; line-height: 1;
+      cursor: pointer; transition: all .15s; flex-shrink: 0;
+    }
+    #topbar .btn-icon:active, #topbar .btn-icon.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    #topbar .btn-icon.rec-on { background: #dc3545; border-color: #dc3545; color: #fff; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+    #topbar .spacer { flex: 1; }
+    #rec-timer { font-size:.72rem; color:#dc3545; font-variant-numeric: tabular-nums; min-width:32px; }
+    #wakelock-badge {
+      font-size: .62rem; padding: 2px 5px; border-radius: 6px;
+      background: #155724; color: #b8f5c8; border: 1px solid #2a7a4a;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    #wakelock-badge.off { background: #4a1520; color: #f5b8c8; border-color: #7a2a35; }
+
+    /* ── DEMO PANEL (slide-in) ── */
+    #demo-panel {
+      background: var(--panel2);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden; max-height: 0;
+      transition: max-height .35s ease;
+      flex-shrink: 0;
+    }
+    #demo-panel.open { max-height: 180px; }
+    #demo-inner { padding: 6px 10px; }
+    .demo-title { font-size: .68rem; color: var(--dimmed); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    #song-select { background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 3px 6px; font-size: .8rem; width: 100%; margin-bottom: 6px; }
+    .demo-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+    .demo-controls .btn-icon { background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 4px 10px; font-size: .85rem; cursor: pointer; }
+    .demo-controls .btn-icon.active { background: var(--accent); border-color: var(--accent); color:#fff; }
+    #tempo-display { font-size: .75rem; color: var(--dimmed); align-self: center; }
+    #note-viz { height: 32px; background: var(--panel); border-radius:8px; overflow:hidden; position:relative; margin-top:4px; }
+    .note-block {
+      position: absolute; top: 2px; height: calc(100% - 4px);
+      border-radius: 4px; background: var(--accent);
+      transition: opacity .1s;
+    }
+
+    /* ── SETTINGS PANEL ── */
+    #settings-panel {
+      position: fixed; top: 0; left: 0; width: 310px; max-width: 92vw;
+      height: 100vh; background: var(--panel);
+      border-right: 1px solid var(--border);
+      z-index: 300; transform: translateX(-100%);
+      transition: transform .3s ease;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    #settings-panel.open { transform: translateX(0); }
+    #settings-panel-header {
+      display: flex; align-items: center; padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel2);
+      position: sticky; top: 0; z-index: 1;
+    }
+    #settings-panel-header h6 { flex:1; margin:0; font-size:.9rem; }
+    .settings-section {
+      padding: 12px 14px 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-section:last-child { border-bottom: none; }
+    .settings-label {
+      font-size: .68rem; color: var(--dimmed);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 8px; display: block;
+    }
+    .settings-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .settings-row label { font-size: .78rem; color: var(--text); flex: 1; }
+    .settings-row .val { font-size: .75rem; color: var(--accent); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* styled range */
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      flex: 1; height: 5px; border-radius: 3px;
+      background: var(--border); outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px;
+      border-radius: 50%; background: var(--accent);
+      border: 2px solid var(--panel);
+      box-shadow: 0 0 4px rgba(108,99,255,.5);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); border: 2px solid var(--panel);
+    }
+
+    /* instrument buttons */
+    .instrument-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px; margin-bottom: 10px;
+    }
+    .inst-btn {
+      background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px;
+      padding: 6px 8px; font-size: .75rem;
+      cursor: pointer; text-align: center; transition: all .15s;
+    }
+    .inst-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* fullscreen btn big */
+    .btn-fullscreen-big {
+      width: 100%; padding: 10px; border-radius: 10px;
+      background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); font-size: .85rem; cursor: pointer;
+      transition: all .15s; margin-bottom: 8px;
+    }
+    .btn-fullscreen-big:active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── MAIN AREA ── */
+    #main {
+      flex: 1; display: flex; flex-direction: row;
+      overflow: hidden; position: relative;
+    }
+
+    /* ── SPLIT HANDLE ── */
+    #split-handle {
+      width: 12px; flex-shrink: 0;
+      background: var(--border);
+      cursor: col-resize; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; transition: background .2s;
+    }
+    #split-handle.active { background: var(--accent); }
+    #split-handle::after {
+      content: '';
+      width: 3px; height: 40px;
+      border-radius: 3px;
+      background: var(--dimmed);
+    }
+    #split-handle.active::after { background: #fff; }
+    #split-hint {
+      position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+      font-size: .5rem; color: var(--dimmed); white-space: nowrap;
+      writing-mode: vertical-rl; display: none;
+    }
+    #split-handle.active #split-hint { display: block; }
+
+    /* ── KEYBOARD SIDES ── */
+    .keyboard-side {
+      display: flex; flex-direction: column;
+      overflow: hidden; position: relative;
+      transition: width .1s;
+    }
+    #side-left { width: calc(var(--split) * 1%); }
+    #side-right { width: calc((100 - var(--split)) * 1%); }
+
+    .side-header {
+      display: flex; align-items: center; gap: 4px;
+      padding: 3px 5px;
+      background: var(--panel2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .side-label { font-size: .68rem; color: var(--dimmed); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .side-header .spacer { flex: 1; }
+    .side-btn {
+      background: var(--panel); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px;
+      padding: 2px 5px; font-size: .72rem; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+    }
+    .side-btn.active { background: var(--accent); border-color: var(--accent); color:#fff; }
+    .side-btn.locked { background: #664d00; border-color: #cc9900; color: #ffc107; }
+    .octave-display { font-size: .68rem; color: var(--dimmed); font-variant-numeric: tabular-nums; }
+
+    /* ── PIANO KEYBOARD ── */
+    .keyboard-wrapper {
+      flex: 1; overflow-x: auto; overflow-y: hidden;
+      position: relative;
+    }
+    .keyboard-wrapper::-webkit-scrollbar { height: 3px; }
+    .keyboard-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius:2px; }
+    .piano {
+      position: relative;
+      height: var(--white-key-h);
+      display: flex;
+      user-select: none;
+      transform-origin: top left;
+    }
+    .white-key {
+      position: relative;
+      width: var(--white-key-w);
+      min-width: var(--white-key-w);
+      height: var(--white-key-h);
+      background: linear-gradient(to bottom, #f0f0f8 0%, #ffffff 60%);
+      border: 1px solid #aaa;
+      border-radius: 0 0 5px 5px;
+      cursor: pointer;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 5px;
+      flex-shrink: 0;
+      transition: background .05s;
+      z-index: 1;
+    }
+    .white-key .key-label {
+      font-size: .5rem; color: #888; font-weight: 600;
+      pointer-events: none; line-height: 1;
+    }
+    .white-key.active { background: linear-gradient(to bottom, #c8c0ff 0%, #a090ff 60%); border-color: var(--accent); }
+    .white-key.demo-highlight { background: linear-gradient(to bottom, #ffe066 0%, #ffd700 60%); border-color: #cc9900; }
+    .white-key.left-hand { border-top: 3px solid #4fc3f7; }
+    .white-key.right-hand { border-top: 3px solid #ff80ab; }
+
+    .black-key {
+      position: absolute;
+      width: var(--black-key-w);
+      height: var(--black-key-h);
+      background: linear-gradient(to bottom, #222 0%, #000 70%);
+      border-radius: 0 0 4px 4px;
+      cursor: pointer;
+      z-index: 2;
+      border: 1px solid #111;
+      transition: background .05s;
+    }
+    .black-key.active { background: linear-gradient(to bottom, #6c63ff 0%, #4a42cc 70%); }
+    .black-key.demo-highlight { background: linear-gradient(to bottom, #cc9900 0%, #996600 70%); }
+    .black-key.left-hand { border-top: 3px solid #4fc3f7; }
+    .black-key.right-hand { border-top: 3px solid #ff80ab; }
+
+    /* ── RECORDINGS PANEL ── */
+    #rec-panel {
+      position: fixed; top: 0; right: 0; width: 300px; max-width: 90vw;
+      height: 100vh; background: var(--panel);
+      border-left: 1px solid var(--border);
+      z-index: 200; transform: translateX(100%);
+      transition: transform .3s ease;
+      display: flex; flex-direction: column;
+    }
+    #rec-panel.open { transform: translateX(0); }
+    #rec-panel-header {
+      display: flex; align-items: center; padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    #rec-panel-header h6 { flex:1; margin:0; font-size:.9rem; }
+    .rec-item {
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+    }
+    .rec-item .rec-name { font-size: .8rem; font-weight: 600; }
+    .rec-item .rec-meta { font-size: .65rem; color: var(--dimmed); }
+    .rec-item .rec-actions { display:flex; gap:4px; margin-top:4px; }
+    .rec-item .rec-actions button {
+      font-size: .7rem; padding: 1px 6px;
+      border-radius: 5px; border: 1px solid var(--border);
+      background: var(--panel2); color: var(--text); cursor: pointer;
+    }
+    .rec-item .rec-actions .btn-sync { border-color: #0d6efd; color: #0d6efd; }
+    .rec-item .rec-actions .btn-del { border-color: #dc3545; color: #dc3545; }
+    .rec-item.synced .rec-name::after { content: ' ✓'; color: #198754; font-size: .65rem; }
+    #rec-list { flex:1; overflow-y: auto; }
+    #no-recs { padding:20px; text-align:center; color:var(--dimmed); font-size:.8rem; }
+
+    /* sync modal */
+    #sync-modal-bg {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.7);
+      z-index:500; align-items:center; justify-content:center;
+    }
+    #sync-modal-bg.show { display:flex; }
+    #sync-modal {
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:12px; padding:20px; width:280px; max-width:90vw;
+    }
+    #sync-modal h6 { margin-bottom:12px; }
+    .modal-input { width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:.8rem; margin-bottom:8px; }
+    .modal-btns { display:flex; gap:8px; }
+    .modal-btns button { flex:1; padding:6px; border-radius:8px; border:none; cursor:pointer; font-size:.8rem; }
+    .btn-primary-sm { background:var(--accent); color:#fff; }
+    .btn-cancel { background:var(--panel2); color:var(--text); border:1px solid var(--border) !important; }
+
+    /* overlay for drag + settings bg */
+    #drag-overlay {
+      display:none; position:fixed; inset:0; z-index:150; cursor:col-resize;
+    }
+    #drag-overlay.active { display:block; }
+
+    #settings-overlay {
+      display:none; position:fixed; inset:0; z-index:290;
+      background: rgba(0,0,0,.5);
+    }
+    #settings-overlay.active { display:block; }
+
+    /* toast */
+    #toast {
+      position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(80px);
+      background:#198754; color:#fff; padding:8px 18px; border-radius:20px;
+      font-size:.8rem; z-index:600; transition:transform .3s ease; pointer-events:none;
+      white-space: nowrap;
+    }
+    #toast.show { transform:translateX(-50%) translateY(0); }
+
+    /* fullscreen indicator */
+    #fs-badge {
+      font-size: .62rem; padding: 2px 5px; border-radius: 6px;
+      background: var(--panel2); color: var(--dimmed);
+      border: 1px solid var(--border); cursor: pointer;
+      white-space: nowrap; flex-shrink: 0; display: flex;
+      align-items: center; gap: 3px;
+    }
+    #fs-badge.active { background: #1a1a40; color: var(--accent); border-color: var(--accent); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <span class="logo"><i class="bi bi-music-note-beamed"></i> PianoSplit</span>
+    <button class="btn-icon" id="btn-demo" title="Demo / Practice"><i class="bi bi-play-circle"></i></button>
+    <button class="btn-icon" id="btn-record" title="Record"><i class="bi bi-record-circle"></i></button>
+    <span id="rec-timer" style="display:none">0:00</span>
+    <span class="spacer"></span>
+    <span id="fs-badge" id="btn-fullscreen" title="Fullscreen"><i class="bi bi-fullscreen"></i></span>
+    <span id="wakelock-badge" class="off"><i class="bi bi-moon-stars"></i> Sleep</span>
+    <button class="btn-icon" id="btn-recs" title="Recordings"><i class="bi bi-collection-play"></i></button>
+    <button class="btn-icon" id="btn-sync-open" title="Sync Settings"><i class="bi bi-cloud-arrow-up"></i></button>
+    <button class="btn-icon" id="btn-settings" title="Settings"><i class="bi bi-sliders2"></i></button>
+  </div>
+
+  <!-- DEMO PANEL (slide down) -->
+  <div id="demo-panel">
+    <div id="demo-inner">
+      <div class="demo-title"><i class="bi bi-music-note-list"></i> Practice Mode – Note Visualizer</div>
+      <select id="song-select"></select>
+      <div class="demo-controls">
+        <button class="btn-icon" id="btn-demo-play"><i class="bi bi-play-fill"></i> Play</button>
+        <button class="btn-icon" id="btn-demo-stop"><i class="bi bi-stop-fill"></i> Stop</button>
+        <button class="btn-icon" id="btn-demo-loop" title="Loop"><i class="bi bi-arrow-repeat"></i></button>
+        <button class="btn-icon" id="btn-tempo-down"><i class="bi bi-dash-circle"></i></button>
+        <span id="tempo-display">♩= 100</span>
+        <button class="btn-icon" id="btn-tempo-up"><i class="bi bi-plus-circle"></i></button>
+      </div>
+      <div id="note-viz"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- LEFT SIDE -->
+    <div class="keyboard-side" id="side-left">
+      <div class="side-header">
+        <span class="side-label"><i class="bi bi-hand-index-thumb" style="color:#4fc3f7"></i> L</span>
+        <span class="octave-display" id="oct-left">Oct 3</span>
+        <button class="side-btn" id="btn-oct-left-dn" title="Octave Down"><i class="bi bi-chevron-left"></i></button>
+        <button class="side-btn" id="btn-oct-left-up" title="Octave Up"><i class="bi bi-chevron-right"></i></button>
+        <span class="spacer"></span>
+        <button class="side-btn" id="btn-lock-left" title="Lock/Unlock"><i class="bi bi-unlock"></i></button>
+      </div>
+      <div class="keyboard-wrapper" id="wrap-left">
+        <div class="piano" id="piano-left"></div>
+      </div>
+    </div>
+
+    <!-- SPLIT HANDLE -->
+    <div id="split-handle" title="Long press & drag to resize">
+      <span id="split-hint">drag</span>
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="keyboard-side" id="side-right">
+      <div class="side-header">
+        <span class="side-label"><i class="bi bi-hand-index-thumb-fill" style="color:#ff80ab"></i> R</span>
+        <span class="octave-display" id="oct-right">Oct 5</span>
+        <button class="side-btn" id="btn-oct-right-dn" title="Octave Down"><i class="bi bi-chevron-left"></i></button>
+        <button class="side-btn" id="btn-oct-right-up" title="Octave Up"><i class="bi bi-chevron-right"></i></button>
+        <span class="spacer"></span>
+        <button class="side-btn" id="btn-lock-right" title="Lock/Unlock"><i class="bi bi-unlock"></i></button>
+      </div>
+      <div class="keyboard-wrapper" id="wrap-right">
+        <div class="piano" id="piano-right"></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- DRAG OVERLAY -->
+<div id="drag-overlay"></div>
+
+<!-- SETTINGS OVERLAY (click to close) -->
+<div id="settings-overlay"></div>
+
+<!-- SETTINGS PANEL -->
+<div id="settings-panel">
+  <div id="settings-panel-header">
+    <i class="bi bi-sliders2 me-2" style="color:var(--accent)"></i>
+    <h6>Piano Settings</h6>
+    <button class="btn-icon" id="btn-close-settings" style="padding:2px 7px;font-size:.9rem"><i class="bi bi-x-lg"></i></button>
+  </div>
+
+  <!-- Fullscreen -->
+  <div class="settings-section">
+    <span class="settings-label"><i class="bi bi-fullscreen"></i> Display</span>
+    <button class="btn-fullscreen-big" id="btn-fs-big">
+      <i class="bi bi-fullscreen" id="fs-icon"></i>
+      <span id="fs-label"> Enter Fullscreen</span>
+    </button>
+  </div>
+
+  <!-- Key Size -->
+  <div class="settings-section">
+    <span class="settings-label"><i class="bi bi-aspect-ratio"></i> Key Size</span>
+    <div class="settings-row">
+      <label>Key Width</label>
+      <input type="range" id="slider-key-width" min="24" max="64" step="2" value="36">
+      <span class="val" id="val-key-width">36px</span>
+    </div>
+    <div class="settings-row">
+      <label>Key Height</label>
+      <input type="range" id="slider-key-height" min="80" max="220" step="5" value="130">
+      <span class="val" id="val-key-height">130px</span>
+    </div>
+  </div>
+
+  <!-- Instrument -->
+  <div class="settings-section">
+    <span class="settings-label"><i class="bi bi-piano"></i> Instrument</span>
+    <div class="instrument-grid" id="inst-grid">
+      <button class="inst-btn active" data-inst="piano">🎹 Piano</button>
+      <button class="inst-btn" data-inst="organ">🎺 Organ</button>
+      <button class="inst-btn" data-inst="strings">🎻 Strings</button>
+      <button class="inst-btn" data-inst="flute">🪈 Flute</button>
+      <button class="inst-btn" data-inst="synth">🌐 Synth</button>
+      <button class="inst-btn" data-inst="bass">🎸 Bass</button>
+    </div>
+  </div>
+
+  <!-- Reverb / Effects -->
+  <div class="settings-section">
+    <span class="settings-label"><i class="bi bi-soundwave"></i> Effects</span>
+    <div class="settings-row">
+      <label>Reverb</label>
+      <input type="range" id="slider-reverb" min="0" max="100" step="1" value="25">
+      <span class="val" id="val-reverb">25%</span>
+    </div>
+    <div class="settings-row">
+      <label>Volume</label>
+      <input type="range" id="slider-volume" min="0" max="100" step="1" value="70">
+      <span class="val" id="val-volume">70%</span>
+    </div>
+    <div class="settings-row">
+      <label>Sustain</label>
+      <input type="range" id="slider-sustain" min="0" max="100" step="1" value="40">
+      <span class="val" id="val-sustain">40%</span>
+    </div>
+  </div>
+
+  <!-- Touch feel -->
+  <div class="settings-section" style="padding-bottom:14px">
+    <span class="settings-label"><i class="bi bi-hand-index"></i> Touch</span>
+    <div class="settings-row">
+      <label>Velocity sensitivity</label>
+      <input type="range" id="slider-velocity" min="0" max="100" step="1" value="70">
+      <span class="val" id="val-velocity">70%</span>
+    </div>
+  </div>
+</div>
+
+<!-- RECORDINGS PANEL -->
+<div id="rec-panel">
+  <div id="rec-panel-header">
+    <i class="bi bi-collection-play me-2"></i>
+    <h6>Recordings</h6>
+    <button class="btn-icon" id="btn-close-recs" style="padding:2px 7px;font-size:.9rem"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div id="rec-list"><div id="no-recs">No recordings yet.<br>Hit ● to start recording!</div></div>
+</div>
+
+<!-- SYNC MODAL -->
+<div id="sync-modal-bg">
+  <div id="sync-modal">
+    <h6><i class="bi bi-cloud-arrow-up"></i> Server Sync</h6>
+    <label style="font-size:.75rem;color:var(--dimmed)">Server URL</label>
+    <input id="sync-url" type="url" class="modal-input" placeholder="https://your-server.com/api/sync" />
+    <label style="font-size:.75rem;color:var(--dimmed)">API Key (optional)</label>
+    <input id="sync-key" type="text" class="modal-input" placeholder="Bearer token / API key" />
+    <div class="modal-btns">
+      <button class="btn-cancel" id="btn-sync-cancel">Cancel</button>
+      <button class="btn-primary-sm" id="btn-sync-now"><i class="bi bi-cloud-upload"></i> Sync All</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ════════════════════════════════════════════════════
+//  BACK-SWIPE / NAVIGATION LOCK
+//  Push extra history entries so back gesture hits our
+//  interceptor rather than leaving the page.
+// ════════════════════════════════════════════════════
+(function lockNavigation() {
+  // Push two states so we always have buffer
+  history.pushState({ pianoApp: true }, '', location.href);
+  history.pushState({ pianoApp: true }, '', location.href);
+
+  window.addEventListener('popstate', function(e) {
+    // Any back navigation: push forward again
+    history.pushState({ pianoApp: true }, '', location.href);
+    showToast('⬅ Use the app controls to navigate');
+  });
+
+  // Block edge-swipe on iOS / Android via touch detection
+  // Capture left-edge swipe (< 30px from left) or right-edge swipe (> w-30px)
+  let touchStartX = 0;
+  let touchStartY = 0;
+  document.addEventListener('touchstart', function(e) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true, capture: true });
+
+  document.addEventListener('touchmove', function(e) {
+    const dx = e.touches[0].clientX - touchStartX;
+    const dy = Math.abs(e.touches[0].clientY - touchStartY);
+    const fromEdge = touchStartX < 30 || touchStartX > window.innerWidth - 30;
+    // Only block horizontal edge swipes
+    if (fromEdge && Math.abs(dx) > 10 && Math.abs(dx) > dy) {
+      e.preventDefault();
+    }
+  }, { passive: false, capture: true });
+})();
+
+// ════════════════════════════════════════════════════
+//  AUDIO ENGINE
+// ════════════════════════════════════════════════════
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let ctx = null;
+let masterGain = null;
+let reverbNode = null;
+let reverbWet = null;
+let reverbDry = null;
+let reverbBuffer = null;
+
+const AUDIO_STATE = {
+  instrument: localStorage.getItem('instrument') || 'piano',
+  reverbAmount: parseFloat(localStorage.getItem('reverbAmount') || '0.25'),
+  volume: parseFloat(localStorage.getItem('volume') || '0.7'),
+  sustain: parseFloat(localStorage.getItem('sustain') || '0.4'),
+  velocity: parseFloat(localStorage.getItem('velocity') || '0.7'),
+};
+
+function ensureCtx() {
+  if (!ctx) {
+    ctx = new AudioCtx();
+    masterGain = ctx.createGain();
+    masterGain.gain.value = AUDIO_STATE.volume;
+    masterGain.connect(ctx.destination);
+    buildReverb();
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+
+// Convolver reverb with synthesized IR
+function buildReverb() {
+  if (!ctx) return;
+  reverbNode = ctx.createConvolver();
+  reverbWet = ctx.createGain();
+  reverbDry = ctx.createGain();
+
+  // Generate impulse response
+  const length = ctx.sampleRate * 2.5;
+  const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5);
+    }
+  }
+  reverbNode.buffer = impulse;
+
+  reverbWet.gain.value = AUDIO_STATE.reverbAmount;
+  reverbDry.gain.value = 1 - AUDIO_STATE.reverbAmount * 0.5;
+
+  reverbNode.connect(reverbWet);
+  reverbWet.connect(masterGain);
+  reverbDry.connect(masterGain);
+}
+
+function getInstrumentParams(inst) {
+  // Returns { type, filterFreq, attack, decay, sustainLvl, release, detune, harmonics }
+  const params = {
+    piano:   { type:'triangle', filterFreq:4000, attack:.01, decay:.4, sustainLvl:.15, release:.6, detune:0, bright:0.3 },
+    organ:   { type:'sine',     filterFreq:8000, attack:.01, decay:.01, sustainLvl:.9,  release:.08, detune:0, bright:0.6 },
+    strings: { type:'sawtooth', filterFreq:2000, attack:.12, decay:.3,  sustainLvl:.5,  release:.8,  detune:5, bright:0.2 },
+    flute:   { type:'sine',     filterFreq:6000, attack:.08, decay:.1,  sustainLvl:.7,  release:.3,  detune:0, bright:0.1 },
+    synth:   { type:'sawtooth', filterFreq:5000, attack:.02, decay:.15, sustainLvl:.6,  release:.4,  detune:8, bright:0.8 },
+    bass:    { type:'triangle', filterFreq:800,  attack:.02, decay:.5,  sustainLvl:.3,  release:.5,  detune:0, bright:0.1 },
+  };
+  return params[inst] || params.piano;
+}
+
+const activeOscillators = {};
+
+function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+function noteOn(midi, velocity) {
+  if (velocity === undefined) velocity = AUDIO_STATE.velocity;
+  const c = ensureCtx();
+  if (activeOscillators[midi]) noteOff(midi);
+
+  const p = getInstrumentParams(AUDIO_STATE.instrument);
+  const freq = midiToFreq(midi);
+
+  const osc = c.createOscillator();
+  const osc2 = c.createOscillator(); // second osc for richness
+  const gain = c.createGain();
+  const filter = c.createBiquadFilter();
+  const oscGain2 = c.createGain();
+
+  filter.type = 'lowpass';
+  filter.frequency.value = p.filterFreq;
+  filter.Q.value = 1;
+
+  osc.type = p.type;
+  osc.frequency.value = freq;
+  osc.detune.value = 0;
+
+  // Second oscillator for harmonic richness
+  osc2.type = p.type === 'sine' ? 'sine' : 'triangle';
+  osc2.frequency.value = freq * (p.type === 'organ' ? 2 : 1);
+  osc2.detune.value = p.detune;
+  oscGain2.gain.value = p.bright;
+
+  const vel = velocity * AUDIO_STATE.velocity;
+  const sus = p.sustainLvl * (0.5 + AUDIO_STATE.sustain * 0.5);
+  const rel = p.release * (0.5 + AUDIO_STATE.sustain * 1.5);
+
+  gain.gain.setValueAtTime(0, c.currentTime);
+  gain.gain.linearRampToValueAtTime(vel * 0.5, c.currentTime + p.attack);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.001, vel * sus), c.currentTime + p.attack + p.decay);
+
+  osc.connect(filter);
+  osc2.connect(oscGain2);
+  oscGain2.connect(filter);
+  filter.connect(gain);
+  gain.connect(reverbDry || masterGain);
+  gain.connect(reverbNode || masterGain);
+
+  osc.start();
+  osc2.start();
+
+  activeOscillators[midi] = { osc, osc2, gain, oscGain2, filter };
+}
+
+function noteOff(midi) {
+  const n = activeOscillators[midi];
+  if (!n) return;
+  const c = ensureCtx();
+  const p = getInstrumentParams(AUDIO_STATE.instrument);
+  const rel = p.release * (0.5 + AUDIO_STATE.sustain * 1.5);
+
+  n.gain.gain.cancelScheduledValues(c.currentTime);
+  n.gain.gain.setValueAtTime(n.gain.gain.value, c.currentTime);
+  n.gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + rel);
+  n.osc.stop(c.currentTime + rel + 0.01);
+  n.osc2.stop(c.currentTime + rel + 0.01);
+  delete activeOscillators[midi];
+}
+
+function setVolume(v) {
+  AUDIO_STATE.volume = v;
+  if (masterGain) masterGain.gain.value = v;
+  localStorage.setItem('volume', v);
+}
+
+function setReverb(v) {
+  AUDIO_STATE.reverbAmount = v;
+  if (reverbWet) reverbWet.gain.value = v;
+  if (reverbDry) reverbDry.gain.value = 1 - v * 0.5;
+  localStorage.setItem('reverbAmount', v);
+}
+
+// ════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════
+const STATE = {
+  splitPct: parseFloat(localStorage.getItem('splitPct') || '50'),
+  octLeft: parseInt(localStorage.getItem('octLeft') || '3'),
+  octRight: parseInt(localStorage.getItem('octRight') || '5'),
+  lockedLeft: false,
+  lockedRight: false,
+  recording: false,
+  recStart: null,
+  recData: [],
+  recTimer: null,
+  demoOpen: false,
+  demoPlaying: false,
+  demoLoop: false,
+  demoTempo: 100,
+  demoSongIdx: 0,
+  demoScheduledTimeouts: [],
+  activeKeys: new Set(),
+  keyWidth: parseInt(localStorage.getItem('keyWidth') || '36'),
+  keyHeight: parseInt(localStorage.getItem('keyHeight') || '130'),
+  isFullscreen: false,
+};
+
+// ════════════════════════════════════════════════════
+//  KEY SIZE
+// ════════════════════════════════════════════════════
+function applyKeySize() {
+  const r = document.documentElement.style;
+  const wkw = STATE.keyWidth;
+  const wkh = STATE.keyHeight;
+  const bkw = Math.round(wkw * 0.6);
+  const bkh = Math.round(wkh * 0.6);
+  r.setProperty('--white-key-w', wkw + 'px');
+  r.setProperty('--white-key-h', wkh + 'px');
+  r.setProperty('--black-key-w', bkw + 'px');
+  r.setProperty('--black-key-h', bkh + 'px');
+}
+
+// ════════════════════════════════════════════════════
+//  PIANO LAYOUT
+// ════════════════════════════════════════════════════
+const WHITE_NOTES = [0,2,4,5,7,9,11];
+const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function buildPiano(containerId, side) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  const oct = side === 'left' ? STATE.octLeft : STATE.octRight;
+  const startMidi = oct * 12 + 12;
+  const numOctaves = 3;
+
+  let whiteIdx = 0;
+  const whites = [];
+  const blacks = [];
+
+  for (let o = 0; o < numOctaves; o++) {
+    for (let n = 0; n < 12; n++) {
+      const midi = startMidi + o * 12 + n;
+      const noteName = NOTES_SHARP[n] + (oct + o);
+      if (WHITE_NOTES.includes(n)) {
+        const el = document.createElement('div');
+        el.className = 'white-key';
+        el.dataset.midi = midi;
+        el.dataset.side = side;
+        const lbl = document.createElement('span');
+        lbl.className = 'key-label';
+        lbl.textContent = noteName;
+        el.appendChild(lbl);
+        container.appendChild(el);
+        whites.push({ el, whiteIdx, midi });
+        whiteIdx++;
+      } else {
+        blacks.push({ n, o, midi, whiteRelIdx: whiteIdx - 1, noteName });
+      }
+    }
+  }
+
+  const totalWhites = whiteIdx;
+  const keyW = STATE.keyWidth;
+  const bkW = Math.round(keyW * 0.6);
+  container.style.width = (totalWhites * keyW) + 'px';
+
+  blacks.forEach(({ n, midi, whiteRelIdx }) => {
+    const el = document.createElement('div');
+    el.className = 'black-key';
+    el.dataset.midi = midi;
+    el.dataset.side = side;
+    const leftPos = (whiteRelIdx + 1) * keyW - Math.round(bkW / 2);
+    el.style.left = leftPos + 'px';
+    container.appendChild(el);
+  });
+
+  bindKeyEvents(container, side);
+}
+
+function rebuildBothPianos() {
+  applyKeySize();
+  buildPiano('piano-left', 'left');
+  buildPiano('piano-right', 'right');
+  updateHandColors('left');
+  updateHandColors('right');
+}
+
+function updateHandColors(side) {
+  const piano = document.getElementById('piano-' + side);
+  const locked = side === 'left' ? STATE.lockedLeft : STATE.lockedRight;
+  piano.querySelectorAll('.white-key,.black-key').forEach(el => {
+    el.classList.remove('left-hand','right-hand');
+    if (locked) el.classList.add(side === 'left' ? 'left-hand' : 'right-hand');
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  KEY EVENTS (touch + mouse)
+// ════════════════════════════════════════════════════
+function bindKeyEvents(piano, side) {
+  function getKeyFromPoint(x, y) {
+    const blacks = piano.querySelectorAll('.black-key');
+    for (const b of blacks) {
+      const r = b.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return b;
+    }
+    const whites = piano.querySelectorAll('.white-key');
+    for (const w of whites) {
+      const r = w.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return w;
+    }
+    return null;
+  }
+
+  const touchMap = {};
+
+  piano.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const el = getKeyFromPoint(t.clientX, t.clientY);
+      if (el) {
+        const midi = parseInt(el.dataset.midi);
+        touchMap[t.identifier] = midi;
+        pressKey(midi, el, side);
+      }
+    }
+  }, { passive: false });
+
+  piano.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const el = getKeyFromPoint(t.clientX, t.clientY);
+      const prevMidi = touchMap[t.identifier];
+      const newMidi = el ? parseInt(el.dataset.midi) : null;
+      if (prevMidi !== newMidi) {
+        if (prevMidi != null) releaseKey(prevMidi);
+        if (newMidi != null) {
+          touchMap[t.identifier] = newMidi;
+          pressKey(newMidi, el, side);
+        } else {
+          delete touchMap[t.identifier];
+        }
+      }
+    }
+  }, { passive: false });
+
+  piano.addEventListener('touchend', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const midi = touchMap[t.identifier];
+      if (midi != null) { releaseKey(midi); delete touchMap[t.identifier]; }
+    }
+  }, { passive: false });
+
+  let mouseDown = false, mouseMidi = null;
+  piano.addEventListener('mousedown', e => {
+    mouseDown = true;
+    const el = getKeyFromPoint(e.clientX, e.clientY);
+    if (el) { mouseMidi = parseInt(el.dataset.midi); pressKey(mouseMidi, el, side); }
+  });
+  piano.addEventListener('mousemove', e => {
+    if (!mouseDown) return;
+    const el = getKeyFromPoint(e.clientX, e.clientY);
+    const newMidi = el ? parseInt(el.dataset.midi) : null;
+    if (newMidi !== mouseMidi) {
+      if (mouseMidi != null) releaseKey(mouseMidi);
+      if (newMidi != null) pressKey(newMidi, el, side);
+      mouseMidi = newMidi;
+    }
+  });
+  piano.addEventListener('mouseup', () => { mouseDown = false; if (mouseMidi != null) { releaseKey(mouseMidi); mouseMidi = null; } });
+  piano.addEventListener('mouseleave', () => { if (mouseDown && mouseMidi) { releaseKey(mouseMidi); mouseMidi = null; mouseDown = false; } });
+}
+
+function pressKey(midi, el, side) {
+  if (STATE.activeKeys.has(midi)) return;
+  STATE.activeKeys.add(midi);
+  noteOn(midi);
+  if (el) el.classList.add('active');
+  if (STATE.recording) {
+    STATE.recData.push({ t: Date.now() - STATE.recStart, midi, on: true });
+  }
+}
+
+function releaseKey(midi) {
+  if (!STATE.activeKeys.has(midi)) return;
+  STATE.activeKeys.delete(midi);
+  noteOff(midi);
+  document.querySelectorAll(`[data-midi="${midi}"]`).forEach(el => el.classList.remove('active'));
+  if (STATE.recording) {
+    STATE.recData.push({ t: Date.now() - STATE.recStart, midi, on: false });
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  SPLIT & SIZING
+// ════════════════════════════════════════════════════
+function applySplit() {
+  document.documentElement.style.setProperty('--split', STATE.splitPct);
+}
+
+let splitLongPressTimer = null;
+let splitDragging = false;
+const handle = document.getElementById('split-handle');
+const overlay = document.getElementById('drag-overlay');
+
+function startSplitDrag() {
+  splitDragging = true;
+  handle.classList.add('active');
+  overlay.classList.add('active');
+}
+
+function endSplitDrag() {
+  splitDragging = false;
+  handle.classList.remove('active');
+  overlay.classList.remove('active');
+  localStorage.setItem('splitPct', STATE.splitPct);
+}
+
+function doSplitMove(clientX) {
+  const main = document.getElementById('main');
+  const rect = main.getBoundingClientRect();
+  let pct = ((clientX - rect.left) / rect.width) * 100;
+  pct = Math.max(20, Math.min(80, pct));
+  STATE.splitPct = pct;
+  applySplit();
+}
+
+handle.addEventListener('touchstart', e => {
+  e.stopPropagation();
+  splitLongPressTimer = setTimeout(() => { startSplitDrag(); }, 500);
+}, { passive: true });
+
+handle.addEventListener('touchmove', e => {
+  if (!splitDragging) { clearTimeout(splitLongPressTimer); return; }
+  e.preventDefault();
+  doSplitMove(e.touches[0].clientX);
+}, { passive: false });
+
+handle.addEventListener('touchend', e => {
+  clearTimeout(splitLongPressTimer);
+  if (splitDragging) endSplitDrag();
+}, { passive: true });
+
+handle.addEventListener('mousedown', e => {
+  splitLongPressTimer = setTimeout(() => { startSplitDrag(); }, 500);
+});
+document.addEventListener('mousemove', e => {
+  if (!splitDragging) return;
+  doSplitMove(e.clientX);
+});
+overlay.addEventListener('mousemove', e => {
+  if (!splitDragging) return;
+  doSplitMove(e.clientX);
+});
+overlay.addEventListener('mouseup', () => { if (splitDragging) endSplitDrag(); });
+overlay.addEventListener('touchmove', e => {
+  if (!splitDragging) return;
+  e.preventDefault();
+  doSplitMove(e.touches[0].clientX);
+}, { passive: false });
+overlay.addEventListener('touchend', () => { if (splitDragging) endSplitDrag(); });
+document.addEventListener('mouseup', () => { clearTimeout(splitLongPressTimer); if (splitDragging) endSplitDrag(); });
+
+// ════════════════════════════════════════════════════
+//  OCTAVE CONTROLS
+// ════════════════════════════════════════════════════
+function setOctave(side, delta) {
+  if (side === 'left') {
+    STATE.octLeft = Math.max(0, Math.min(7, STATE.octLeft + delta));
+    document.getElementById('oct-left').textContent = 'Oct ' + STATE.octLeft;
+    localStorage.setItem('octLeft', STATE.octLeft);
+    buildPiano('piano-left', 'left');
+    updateHandColors('left');
+  } else {
+    STATE.octRight = Math.max(0, Math.min(7, STATE.octRight + delta));
+    document.getElementById('oct-right').textContent = 'Oct ' + STATE.octRight;
+    localStorage.setItem('octRight', STATE.octRight);
+    buildPiano('piano-right', 'right');
+    updateHandColors('right');
+  }
+}
+
+document.getElementById('btn-oct-left-dn').onclick = () => setOctave('left', -1);
+document.getElementById('btn-oct-left-up').onclick = () => setOctave('left', 1);
+document.getElementById('btn-oct-right-dn').onclick = () => setOctave('right', -1);
+document.getElementById('btn-oct-right-up').onclick = () => setOctave('right', 1);
+
+// ════════════════════════════════════════════════════
+//  LOCK
+// ════════════════════════════════════════════════════
+function toggleLock(side) {
+  if (side === 'left') {
+    STATE.lockedLeft = !STATE.lockedLeft;
+    const btn = document.getElementById('btn-lock-left');
+    btn.innerHTML = STATE.lockedLeft ? '<i class="bi bi-lock-fill"></i>' : '<i class="bi bi-unlock"></i>';
+    btn.classList.toggle('locked', STATE.lockedLeft);
+    showToast('L hand ' + (STATE.lockedLeft ? 'locked 🔒' : 'unlocked 🔓'));
+  } else {
+    STATE.lockedRight = !STATE.lockedRight;
+    const btn = document.getElementById('btn-lock-right');
+    btn.innerHTML = STATE.lockedRight ? '<i class="bi bi-lock-fill"></i>' : '<i class="bi bi-unlock"></i>';
+    btn.classList.toggle('locked', STATE.lockedRight);
+    showToast('R hand ' + (STATE.lockedRight ? 'locked 🔒' : 'unlocked 🔓'));
+  }
+  updateHandColors(side);
+}
+document.getElementById('btn-lock-left').onclick = () => toggleLock('left');
+document.getElementById('btn-lock-right').onclick = () => toggleLock('right');
+
+// ════════════════════════════════════════════════════
+//  FULLSCREEN
+// ════════════════════════════════════════════════════
+function updateFsUI(isFs) {
+  STATE.isFullscreen = isFs;
+  const badge = document.getElementById('fs-badge');
+  const icon = document.getElementById('fs-icon');
+  const label = document.getElementById('fs-label');
+  if (isFs) {
+    badge.classList.add('active');
+    icon.className = 'bi bi-fullscreen-exit';
+    label.textContent = ' Exit Fullscreen';
+  } else {
+    badge.classList.remove('active');
+    icon.className = 'bi bi-fullscreen';
+    label.textContent = ' Enter Fullscreen';
+  }
+}
+
+function toggleFullscreen() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (req) {
+      req.call(el, { navigationUI: 'hide' }).then(() => {
+        updateFsUI(true);
+        showToast('⛶ Fullscreen — enjoy playing!');
+      }).catch(() => {
+        // iOS Safari fallback: guide user
+        showToast('Tip: Add to Home Screen for true fullscreen');
+      });
+    } else {
+      showToast('Tip: Add to Home Screen for true fullscreen');
+    }
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+    if (exit) exit.call(document).then(() => updateFsUI(false));
+  }
+}
+
+document.getElementById('fs-badge').addEventListener('click', toggleFullscreen);
+document.getElementById('btn-fs-big').addEventListener('click', () => { toggleFullscreen(); closeSettings(); });
+
+document.addEventListener('fullscreenchange', () => updateFsUI(!!document.fullscreenElement));
+document.addEventListener('webkitfullscreenchange', () => updateFsUI(!!document.webkitFullscreenElement));
+
+// ════════════════════════════════════════════════════
+//  WAKE LOCK
+// ════════════════════════════════════════════════════
+let wakeLock = null;
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => updateWakeBadge(false));
+      updateWakeBadge(true);
+    } catch (e) { updateWakeBadge(false); }
+  }
+}
+function updateWakeBadge(on) {
+  const b = document.getElementById('wakelock-badge');
+  b.className = on ? '' : 'off';
+  b.innerHTML = on ? '<i class="bi bi-lightning-charge-fill"></i> Awake' : '<i class="bi bi-moon-stars"></i> Sleep';
+}
+document.addEventListener('visibilitychange', () => {
+  if (!wakeLock && document.visibilityState === 'visible') requestWakeLock();
+});
+
+// ════════════════════════════════════════════════════
+//  SETTINGS PANEL
+// ════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('settings-panel').classList.add('open');
+  document.getElementById('settings-overlay').classList.add('active');
+}
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open');
+  document.getElementById('settings-overlay').classList.remove('active');
+}
+
+document.getElementById('btn-settings').onclick = openSettings;
+document.getElementById('btn-close-settings').onclick = closeSettings;
+document.getElementById('settings-overlay').onclick = closeSettings;
+
+// Key width slider
+const sliderKW = document.getElementById('slider-key-width');
+const valKW = document.getElementById('val-key-width');
+sliderKW.value = STATE.keyWidth;
+valKW.textContent = STATE.keyWidth + 'px';
+sliderKW.addEventListener('input', () => {
+  STATE.keyWidth = parseInt(sliderKW.value);
+  valKW.textContent = STATE.keyWidth + 'px';
+  localStorage.setItem('keyWidth', STATE.keyWidth);
+  rebuildBothPianos();
+});
+
+// Key height slider
+const sliderKH = document.getElementById('slider-key-height');
+const valKH = document.getElementById('val-key-height');
+sliderKH.value = STATE.keyHeight;
+valKH.textContent = STATE.keyHeight + 'px';
+sliderKH.addEventListener('input', () => {
+  STATE.keyHeight = parseInt(sliderKH.value);
+  valKH.textContent = STATE.keyHeight + 'px';
+  localStorage.setItem('keyHeight', STATE.keyHeight);
+  rebuildBothPianos();
+});
+
+// Reverb slider
+const sliderReverb = document.getElementById('slider-reverb');
+const valReverb = document.getElementById('val-reverb');
+sliderReverb.value = Math.round(AUDIO_STATE.reverbAmount * 100);
+valReverb.textContent = sliderReverb.value + '%';
+sliderReverb.addEventListener('input', () => {
+  const v = parseInt(sliderReverb.value) / 100;
+  valReverb.textContent = sliderReverb.value + '%';
+  setReverb(v);
+  ensureCtx(); // init audio context on interaction
+});
+
+// Volume slider
+const sliderVol = document.getElementById('slider-volume');
+const valVol = document.getElementById('val-volume');
+sliderVol.value = Math.round(AUDIO_STATE.volume * 100);
+valVol.textContent = sliderVol.value + '%';
+sliderVol.addEventListener('input', () => {
+  const v = parseInt(sliderVol.value) / 100;
+  valVol.textContent = sliderVol.value + '%';
+  setVolume(v);
+  ensureCtx();
+});
+
+// Sustain slider
+const sliderSustain = document.getElementById('slider-sustain');
+const valSustain = document.getElementById('val-sustain');
+sliderSustain.value = Math.round(AUDIO_STATE.sustain * 100);
+valSustain.textContent = sliderSustain.value + '%';
+sliderSustain.addEventListener('input', () => {
+  AUDIO_STATE.sustain = parseInt(sliderSustain.value) / 100;
+  valSustain.textContent = sliderSustain.value + '%';
+  localStorage.setItem('sustain', AUDIO_STATE.sustain);
+});
+
+// Velocity slider
+const sliderVel = document.getElementById('slider-velocity');
+const valVel = document.getElementById('val-velocity');
+sliderVel.value = Math.round(AUDIO_STATE.velocity * 100);
+valVel.textContent = sliderVel.value + '%';
+sliderVel.addEventListener('input', () => {
+  AUDIO_STATE.velocity = parseInt(sliderVel.value) / 100;
+  valVel.textContent = sliderVel.value + '%';
+  localStorage.setItem('velocity', AUDIO_STATE.velocity);
+});
+
+// Instrument buttons
+document.querySelectorAll('.inst-btn').forEach(btn => {
+  if (btn.dataset.inst === AUDIO_STATE.instrument) btn.classList.add('active');
+  btn.addEventListener('click', () => {
+    AUDIO_STATE.instrument = btn.dataset.inst;
+    localStorage.setItem('instrument', btn.dataset.inst);
+    document.querySelectorAll('.inst-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // Stop all current notes
+    Object.keys(activeOscillators).forEach(m => noteOff(parseInt(m)));
+    STATE.activeKeys.clear();
+    showToast('🎵 Instrument: ' + btn.textContent.trim());
+    ensureCtx();
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  DEMO / PRACTICE SONGS
+// ════════════════════════════════════════════════════
+const SONGS = [
+  {
+    name: '🎵 Twinkle Twinkle',
+    bpm: 120,
+    notes: [
+      [60,1],[60,1],[67,1],[67,1],[69,1],[69,1],[67,2],
+      [65,1],[65,1],[64,1],[64,1],[62,1],[62,1],[60,2],
+      [67,1],[67,1],[65,1],[65,1],[64,1],[64,1],[62,2],
+      [67,1],[67,1],[65,1],[65,1],[64,1],[64,1],[62,2],
+      [60,1],[60,1],[67,1],[67,1],[69,1],[69,1],[67,2],
+      [65,1],[65,1],[64,1],[64,1],[62,1],[62,1],[60,2],
+    ]
+  },
+  {
+    name: '🎹 Ode to Joy',
+    bpm: 100,
+    notes: [
+      [64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],
+      [60,1],[60,1],[62,1],[64,1],[64,1.5],[62,.5],[62,2],
+      [64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],
+      [60,1],[60,1],[62,1],[64,1],[62,1.5],[60,.5],[60,2],
+    ]
+  },
+  {
+    name: '🌙 Für Elise (intro)',
+    bpm: 90,
+    notes: [
+      [76,.5],[75,.5],[76,.5],[75,.5],[76,.5],[71,.5],[74,.5],[72,.5],
+      [69,1.5],[0,.5],[60,.5],[64,.5],[69,.5],
+      [71,1.5],[0,.5],[64,.5],[68,.5],[71,.5],
+      [72,1.5],[0,.5],[64,.5],[76,.5],[75,.5],
+      [76,.5],[75,.5],[76,.5],[71,.5],[74,.5],[72,.5],
+      [69,1.5],[0,.5],[60,.5],[64,.5],[69,.5],
+      [71,1.5],[0,.5],[64,.5],[72,.5],[71,.5],
+      [69,3],
+    ]
+  },
+  {
+    name: '🎸 Happy Birthday',
+    bpm: 90,
+    notes: [
+      [60,.75],[60,.25],[62,1],[60,1],[65,1],[64,2],
+      [60,.75],[60,.25],[62,1],[60,1],[67,1],[65,2],
+      [60,.75],[60,.25],[72,1],[69,1],[65,1],[64,1],[62,1],
+      [70,.75],[70,.25],[69,1],[65,1],[67,1],[65,2],
+    ]
+  },
+  {
+    name: '🎻 Jingle Bells',
+    bpm: 130,
+    notes: [
+      [64,1],[64,1],[64,2],[64,1],[64,1],[64,2],
+      [64,1],[67,1],[60,1.5],[62,.5],[64,4],
+      [65,1],[65,1],[65,1.5],[65,.5],[65,1],[64,1],[64,1],[64,.5],[64,.5],
+      [64,1],[62,1],[62,1],[64,1],[62,2],[67,2],
+    ]
+  },
+  {
+    name: '🌊 Waves (original)',
+    bpm: 80,
+    notes: [
+      [60,1],[64,1],[67,1],[72,2],[67,1],[64,1],[60,2],
+      [62,1],[65,1],[69,1],[74,2],[69,1],[65,1],[62,2],
+      [60,1],[63,1],[67,1],[70,2],[67,1],[63,1],[60,2],
+      [57,1],[60,1],[64,1],[69,2],[72,2],[69,1],[67,2],
+    ]
+  },
+];
+
+const songSelect = document.getElementById('song-select');
+SONGS.forEach((s, i) => {
+  const opt = document.createElement('option');
+  opt.value = i; opt.textContent = s.name;
+  songSelect.appendChild(opt);
+});
+
+songSelect.onchange = () => { STATE.demoSongIdx = parseInt(songSelect.value); stopDemo(); };
+
+document.getElementById('btn-demo').onclick = () => {
+  STATE.demoOpen = !STATE.demoOpen;
+  document.getElementById('demo-panel').classList.toggle('open', STATE.demoOpen);
+  document.getElementById('btn-demo').classList.toggle('active', STATE.demoOpen);
+};
+
+document.getElementById('btn-demo-play').onclick = () => { if (!STATE.demoPlaying) playDemo(); };
+document.getElementById('btn-demo-stop').onclick = stopDemo;
+
+const loopBtn = document.getElementById('btn-demo-loop');
+loopBtn.onclick = () => {
+  STATE.demoLoop = !STATE.demoLoop;
+  loopBtn.classList.toggle('active', STATE.demoLoop);
+};
+
+document.getElementById('btn-tempo-down').onclick = () => {
+  STATE.demoTempo = Math.max(40, STATE.demoTempo - 5);
+  document.getElementById('tempo-display').textContent = '♩= ' + STATE.demoTempo;
+};
+document.getElementById('btn-tempo-up').onclick = () => {
+  STATE.demoTempo = Math.min(200, STATE.demoTempo + 5);
+  document.getElementById('tempo-display').textContent = '♩= ' + STATE.demoTempo;
+};
+
+function playDemo() {
+  stopDemo();
+  STATE.demoPlaying = true;
+  document.getElementById('btn-demo-play').classList.add('active');
+  const song = SONGS[STATE.demoSongIdx];
+  const bpm = STATE.demoTempo;
+  const beatMs = (60 / bpm) * 1000;
+  const viz = document.getElementById('note-viz');
+
+  let time = 0;
+  const totalBeats = song.notes.reduce((s, n) => s + n[1], 0);
+  const totalMs = totalBeats * beatMs;
+
+  song.notes.forEach(([midi, dur]) => {
+    if (midi === 0) { time += dur * beatMs; return; }
+    const startMs = time;
+    const durMs = dur * beatMs * 0.85;
+    const t1 = setTimeout(() => {
+      noteOn(midi, 0.5);
+      highlightKey(midi, true);
+      const block = document.createElement('div');
+      block.className = 'note-block';
+      const pct = (startMs / totalMs) * 100;
+      const w = (durMs / totalMs) * 100;
+      block.style.left = pct + '%';
+      block.style.width = w + '%';
+      block.style.background = `hsl(${(midi % 12) * 30},70%,60%)`;
+      viz.appendChild(block);
+    }, startMs);
+    const t2 = setTimeout(() => {
+      noteOff(midi);
+      highlightKey(midi, false);
+    }, startMs + durMs);
+    STATE.demoScheduledTimeouts.push(t1, t2);
+    time += dur * beatMs;
+  });
+
+  const tEnd = setTimeout(() => {
+    STATE.demoPlaying = false;
+    document.getElementById('btn-demo-play').classList.remove('active');
+    viz.innerHTML = '';
+    if (STATE.demoLoop) playDemo();
+  }, time + 200);
+  STATE.demoScheduledTimeouts.push(tEnd);
+}
+
+function stopDemo() {
+  STATE.demoScheduledTimeouts.forEach(clearTimeout);
+  STATE.demoScheduledTimeouts = [];
+  STATE.demoPlaying = false;
+  document.getElementById('btn-demo-play').classList.remove('active');
+  Object.keys(activeOscillators).forEach(m => noteOff(parseInt(m)));
+  document.querySelectorAll('.demo-highlight').forEach(el => el.classList.remove('demo-highlight'));
+  document.getElementById('note-viz').innerHTML = '';
+}
+
+function highlightKey(midi, on) {
+  document.querySelectorAll(`[data-midi="${midi}"]`).forEach(el => {
+    el.classList.toggle('demo-highlight', on);
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  RECORDING
+// ════════════════════════════════════════════════════
+const recBtn = document.getElementById('btn-record');
+const recTimer = document.getElementById('rec-timer');
+
+recBtn.onclick = () => {
+  if (!STATE.recording) startRecording();
+  else stopRecording();
+};
+
+function startRecording() {
+  ensureCtx();
+  STATE.recording = true;
+  STATE.recStart = Date.now();
+  STATE.recData = [];
+  recBtn.classList.add('rec-on');
+  recBtn.title = 'Stop Recording';
+  recBtn.innerHTML = '<i class="bi bi-stop-circle-fill"></i>';
+  recTimer.style.display = 'inline';
+  STATE.recTimer = setInterval(() => {
+    const s = Math.floor((Date.now() - STATE.recStart) / 1000);
+    const m = Math.floor(s / 60);
+    recTimer.textContent = m + ':' + String(s % 60).padStart(2, '0');
+  }, 500);
+  showToast('● Recording started');
+}
+
+function stopRecording() {
+  STATE.recording = false;
+  clearInterval(STATE.recTimer);
+  recBtn.classList.remove('rec-on');
+  recBtn.innerHTML = '<i class="bi bi-record-circle"></i>';
+  recBtn.title = 'Record';
+  recTimer.style.display = 'none';
+  recTimer.textContent = '0:00';
+
+  if (STATE.recData.length > 0) {
+    const duration = STATE.recData[STATE.recData.length - 1].t;
+    const rec = {
+      id: Date.now().toString(36),
+      name: 'Recording ' + new Date().toLocaleTimeString(),
+      date: new Date().toISOString(),
+      duration,
+      data: STATE.recData,
+      synced: false,
+    };
+    saveRecording(rec);
+    showToast('✓ Recording saved (' + Math.round(duration / 1000) + 's)');
+  } else {
+    showToast('Empty recording discarded');
+  }
+  STATE.recData = [];
+}
+
+// ════════════════════════════════════════════════════
+//  LOCAL STORAGE – RECORDINGS
+// ════════════════════════════════════════════════════
+function getRecordings() {
+  try { return JSON.parse(localStorage.getItem('pianoRecs') || '[]'); } catch { return []; }
+}
+function saveRecording(rec) {
+  const recs = getRecordings();
+  recs.unshift(rec);
+  localStorage.setItem('pianoRecs', JSON.stringify(recs));
+  renderRecList();
+}
+function deleteRecording(id) {
+  const recs = getRecordings().filter(r => r.id !== id);
+  localStorage.setItem('pianoRecs', JSON.stringify(recs));
+  renderRecList();
+}
+function markSynced(id) {
+  const recs = getRecordings().map(r => r.id === id ? { ...r, synced: true } : r);
+  localStorage.setItem('pianoRecs', JSON.stringify(recs));
+  renderRecList();
+}
+
+function renderRecList() {
+  const list = document.getElementById('rec-list');
+  const recs = getRecordings();
+  if (!recs.length) {
+    list.innerHTML = '<div id="no-recs">No recordings yet.<br>Hit ● to start recording!</div>';
+    return;
+  }
+  list.innerHTML = recs.map(r => {
+    const dur = Math.round(r.duration / 1000);
+    const m = Math.floor(dur / 60), s = dur % 60;
+    const durStr = m + ':' + String(s).padStart(2,'0');
+    return `<div class="rec-item ${r.synced ? 'synced' : ''}" data-id="${r.id}">
+      <div class="rec-name">${r.name}</div>
+      <div class="rec-meta"><i class="bi bi-clock"></i> ${durStr} &nbsp; <i class="bi bi-music-note"></i> ${r.data.filter(e=>e.on).length} notes &nbsp; ${new Date(r.date).toLocaleDateString()}</div>
+      <div class="rec-actions">
+        <button onclick="playbackRec('${r.id}')"><i class="bi bi-play-fill"></i> Play</button>
+        <button class="btn-sync" onclick="syncOne('${r.id}')"><i class="bi bi-cloud-upload"></i> Sync</button>
+        <button class="btn-del" onclick="confirmDelete('${r.id}')"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let playbackTimeouts = [];
+function playbackRec(id) {
+  playbackTimeouts.forEach(clearTimeout); playbackTimeouts = [];
+  Object.keys(activeOscillators).forEach(m => noteOff(parseInt(m)));
+  const rec = getRecordings().find(r => r.id === id);
+  if (!rec) return;
+  showToast('▶ Playing back: ' + rec.name);
+  rec.data.forEach(ev => {
+    const t = setTimeout(() => {
+      if (ev.on) noteOn(ev.midi);
+      else noteOff(ev.midi);
+    }, ev.t);
+    playbackTimeouts.push(t);
+  });
+}
+
+function confirmDelete(id) {
+  if (confirm('Delete this recording?')) deleteRecording(id);
+}
+
+// ════════════════════════════════════════════════════
+//  RECORDINGS PANEL UI
+// ════════════════════════════════════════════════════
+document.getElementById('btn-recs').onclick = () => {
+  document.getElementById('rec-panel').classList.add('open');
+  renderRecList();
+};
+document.getElementById('btn-close-recs').onclick = () => {
+  document.getElementById('rec-panel').classList.remove('open');
+};
+
+// ════════════════════════════════════════════════════
+//  SERVER SYNC
+// ════════════════════════════════════════════════════
+document.getElementById('btn-sync-open').onclick = () => {
+  document.getElementById('sync-modal-bg').classList.add('show');
+  document.getElementById('sync-url').value = localStorage.getItem('syncUrl') || '';
+  document.getElementById('sync-key').value = localStorage.getItem('syncKey') || '';
+};
+document.getElementById('btn-sync-cancel').onclick = () => {
+  document.getElementById('sync-modal-bg').classList.remove('show');
+};
+document.getElementById('sync-modal-bg').addEventListener('click', e => {
+  if (e.target === document.getElementById('sync-modal-bg'))
+    document.getElementById('sync-modal-bg').classList.remove('show');
+});
+
+document.getElementById('btn-sync-now').onclick = async () => {
+  const url = document.getElementById('sync-url').value.trim();
+  const key = document.getElementById('sync-key').value.trim();
+  if (!url) { showToast('Please enter a server URL'); return; }
+  localStorage.setItem('syncUrl', url);
+  localStorage.setItem('syncKey', key);
+  document.getElementById('sync-modal-bg').classList.remove('show');
+  const recs = getRecordings().filter(r => !r.synced);
+  if (!recs.length) { showToast('All recordings already synced ✓'); return; }
+  showToast('Syncing ' + recs.length + ' recording(s)…');
+  let ok = 0, fail = 0;
+  for (const rec of recs) {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (key) headers['Authorization'] = key.startsWith('Bearer ') ? key : 'Bearer ' + key;
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(rec) });
+      if (res.ok) { markSynced(rec.id); ok++; }
+      else fail++;
+    } catch { fail++; }
+  }
+  showToast(ok + ' synced' + (fail ? ', ' + fail + ' failed' : ' ✓'));
+};
+
+function syncOne(id) {
+  const url = localStorage.getItem('syncUrl');
+  const key = localStorage.getItem('syncKey');
+  if (!url) { document.getElementById('btn-sync-open').click(); return; }
+  const rec = getRecordings().find(r => r.id === id);
+  if (!rec) return;
+  const headers = { 'Content-Type': 'application/json' };
+  if (key) headers['Authorization'] = key.startsWith('Bearer ') ? key : 'Bearer ' + key;
+  fetch(url, { method: 'POST', headers, body: JSON.stringify(rec) })
+    .then(r => { if (r.ok) { markSynced(id); showToast('Synced ✓'); } else showToast('Sync failed ✗'); })
+    .catch(() => showToast('Sync error ✗'));
+}
+
+// ════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════
+let toastTimeout;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════
+function init() {
+  applySplit();
+  applyKeySize();
+  buildPiano('piano-left', 'left');
+  buildPiano('piano-right', 'right');
+  document.getElementById('oct-left').textContent = 'Oct ' + STATE.octLeft;
+  document.getElementById('oct-right').textContent = 'Oct ' + STATE.octRight;
+  requestWakeLock();
+
+  // Prevent context menu on long press
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Scroll pianos to center initially
+  setTimeout(() => {
+    const wl = document.getElementById('wrap-left');
+    const wr = document.getElementById('wrap-right');
+    wl.scrollLeft = wl.scrollWidth * 0.3;
+    wr.scrollLeft = wr.scrollWidth * 0.1;
+  }, 150);
+
+  // Prevent scroll in keyboard wrappers from bubbling
+  ['wrap-left','wrap-right'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+  });
+
+  // Prevent default drag/select on the whole app
+  document.addEventListener('dragstart', e => e.preventDefault());
+
+  // Restore instrument highlight
+  document.querySelectorAll('.inst-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.inst === AUDIO_STATE.instrument);
+  });
+
+  showToast('🎹 PianoSplit ready! Long-press divider to resize');
+}
+
+init();
+</script>
+</body>
+</html>
